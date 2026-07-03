@@ -39,7 +39,7 @@ console.log("range after MW:", (await rangeRow.locator(".stat-value").textConten
 // TTK table
 const ttkRows = await page.locator(".ttk-table tbody tr").count();
 console.log("ttk rows:", ttkRows);
-console.log("T6 row:", (await page.locator(".ttk-table tr.highlight").textContent()).replace(/\s+/g, " "));
+console.log("base row:", (await page.locator(".ttk-table tr.highlight").textContent()).replace(/\s+/g, " "));
 
 await page.screenshot({ path: `${SHOTS}/02-detail.png`, fullPage: true });
 

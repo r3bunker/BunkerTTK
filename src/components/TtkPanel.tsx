@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  computeTtk,
-  DEFAULT_RESILIENCE_HP,
+  computeTtkAtWeaponsStat,
+  CRUCIBLE_HP,
   findArchetype,
+  WEAPONS_STAT_ROWS,
+  weaponsStatMultiplier,
   type DamageProfile,
 } from "../lib/ttk.ts";
 
@@ -12,6 +14,7 @@ export function TtkPanel({ weaponType, rpmStat }: { weaponType: string; rpmStat?
   const [crit, setCrit] = useState(archetype?.critDamage ?? 0);
   const [body, setBody] = useState(archetype?.bodyDamage ?? 0);
   const [rpm, setRpm] = useState(archetype?.rpm ?? 0);
+  const [hp, setHp] = useState(CRUCIBLE_HP);
 
   // Re-seed inputs when navigating between weapons of different archetypes.
   useEffect(() => {
@@ -30,6 +33,7 @@ export function TtkPanel({ weaponType, rpmStat }: { weaponType: string; rpmStat?
   }
 
   const profile: DamageProfile = { ...archetype, critDamage: crit, bodyDamage: body, rpm };
+  const base = computeTtkAtWeaponsStat(profile, hp, 100);
 
   return (
     <div className="ttk-panel">
@@ -51,14 +55,18 @@ export function TtkPanel({ weaponType, rpmStat }: { weaponType: string; rpmStat?
           RPM
           <input type="number" value={rpm} min={1} onChange={(e) => setRpm(Number(e.target.value))} />
         </label>
+        <label>
+          Target HP
+          <input type="number" value={hp} min={1} onChange={(e) => setHp(Number(e.target.value))} />
+        </label>
       </div>
 
       <div className="table-scroll">
         <table className="ttk-table">
           <thead>
             <tr>
-              <th>Resilience</th>
-              <th>HP</th>
+              <th>Weapons stat</th>
+              <th>Dmg bonus</th>
               {!archetype.noCrit && <th>Optimal TTK</th>}
               {!archetype.noCrit && <th>Crit shots</th>}
               {!archetype.noCrit && <th>Forgiveness</th>}
@@ -67,13 +75,14 @@ export function TtkPanel({ weaponType, rpmStat }: { weaponType: string; rpmStat?
             </tr>
           </thead>
           <tbody>
-            {DEFAULT_RESILIENCE_HP.map((hp, tier) => {
-              const r = computeTtk(profile, hp);
+            {WEAPONS_STAT_ROWS.map((ws) => {
+              const r = computeTtkAtWeaponsStat(profile, hp, ws);
               if (!r) return null;
+              const improved = base !== null && r.optimalShots < base.optimalShots;
               return (
-                <tr key={tier} className={tier === 6 ? "highlight" : ""}>
-                  <td>T{tier}</td>
-                  <td>{hp}</td>
+                <tr key={ws} className={ws === 100 ? "highlight" : improved ? "breakpoint" : ""}>
+                  <td>{ws}{ws === 100 ? " (base)" : ""}</td>
+                  <td>+{((weaponsStatMultiplier(ws) - 1) * 100).toFixed(1)}%</td>
                   {!archetype.noCrit && <td className="ttk-strong">{r.optimalTtk.toFixed(2)}s</td>}
                   {!archetype.noCrit && <td>{r.optimalShots}</td>}
                   {!archetype.noCrit && (
@@ -91,9 +100,13 @@ export function TtkPanel({ weaponType, rpmStat }: { weaponType: string; rpmStat?
       </div>
 
       <p className="muted small">
-        Damage values are community approximations (not in the Bungie API) and drift with sandbox
-        patches — edit the numbers above to match current in-game values. TTK assumes the first
-        shot lands at t=0 and perfect fire rate. T6 highlighted as the most common PvP resilience.
+        Current sandbox (Monument of Triumph, Update 9.7.0 — the final balance patch): every
+        Guardian has a flat {CRUCIBLE_HP} HP in the Crucible; the Health stat only speeds up
+        recovery, it does not add HP. The Weapons stat adds +0.05% damage per point above 100
+        (max +5% at 200), which is what shifts shot-to-kill breakpoints — rows where the stat
+        drops a shot are marked. Damage values are community approximations (not in the Bungie
+        API) — edit the numbers above to match in-game testing. TTK assumes the first shot lands
+        at t=0 and a perfect fire rate.
       </p>
     </div>
   );

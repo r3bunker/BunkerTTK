@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ManifestBundle } from "./types.ts";
 import { buildDemoBundle } from "./lib/demoData.ts";
 import { clearCachedBundle, getCachedBundle, loadLiveManifest } from "./lib/manifest.ts";
+import { DEFAULT_BUNGIE_API_KEY } from "./lib/config.ts";
 import { WeaponList } from "./components/WeaponList.tsx";
 import { WeaponDetail } from "./components/WeaponDetail.tsx";
 
@@ -19,7 +20,9 @@ export default function App() {
   const [route, setRoute] = useState<Route>(parseRoute());
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) ?? "");
+  const [apiKey, setApiKey] = useState(
+    () => localStorage.getItem(API_KEY_STORAGE) ?? DEFAULT_BUNGIE_API_KEY,
+  );
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
@@ -28,12 +31,34 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // Start with cached live data when available, otherwise the bundled demo set.
+  // Start with cached live data when available; otherwise show the bundled
+  // demo set immediately and fetch the live manifest in the background.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const cached = await getCachedBundle();
-      if (!cancelled) setBundle(cached ?? buildDemoBundle());
+      if (cancelled) return;
+      if (cached) {
+        setBundle(cached);
+        return;
+      }
+      setBundle(buildDemoBundle());
+      const key = localStorage.getItem(API_KEY_STORAGE) ?? DEFAULT_BUNGIE_API_KEY;
+      if (!key) return;
+      setLoading(true);
+      try {
+        const live = await loadLiveManifest(key, (m) => !cancelled && setStatus(m));
+        if (!cancelled) {
+          setBundle(live);
+          setStatus(`Loaded live manifest ${live.version} (${Object.keys(live.weapons).length} weapons).`);
+        }
+      } catch {
+        if (!cancelled) {
+          setStatus("Couldn't reach the Bungie API — using bundled sample data. Open “Data source” to retry.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -92,12 +117,12 @@ export default function App() {
       {showSettings && (
         <div className="settings-panel">
           <p>
-            Load the live Bungie manifest to browse every weapon in the game. You need a free API
-            key from{" "}
+            Load the live Bungie manifest to browse every weapon in the game. A default API key is
+            bundled; you can swap in your own from{" "}
             <a href="https://www.bungie.net/en/Application" target="_blank" rel="noreferrer">
               bungie.net/en/Application
             </a>{" "}
-            (any app registration works; the key is stored only in your browser).
+            (keys are stored only in your browser).
           </p>
           <div className="settings-row">
             <input
