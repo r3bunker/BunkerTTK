@@ -1,0 +1,150 @@
+import { useMemo, useState } from "react";
+import { AMMO_NAMES, DAMAGE_TYPE_NAMES, type ManifestBundle, type WeaponDef } from "../types.ts";
+import { tokenMatchesWeapon } from "../lib/perkAliases.ts";
+import { ElementDot, WeaponIcon } from "./common.tsx";
+
+const SLOT_LABELS: Record<WeaponDef["weaponSlot"], string> = {
+  kinetic: "Kinetic",
+  energy: "Energy",
+  power: "Power",
+};
+
+export function WeaponList({ bundle }: { bundle: ManifestBundle }) {
+  const [query, setQuery] = useState("");
+  const [slot, setSlot] = useState<string>("");
+  const [type, setType] = useState<string>("");
+  const [damage, setDamage] = useState<string>("");
+  const [ammo, setAmmo] = useState<string>("");
+  const [tier, setTier] = useState<string>("");
+  const [craftableOnly, setCraftableOnly] = useState(false);
+
+  const weapons = useMemo(() => Object.values(bundle.weapons), [bundle]);
+
+  // Lowercased searchable text per weapon: name, type, and every perk in
+  // its pool (enables godroll.tv-style perk search, e.g. "kc" or "kill clip").
+  const searchIndex = useMemo(() => {
+    const index = new Map<number, { name: string; type: string; perks: string }>();
+    for (const w of weapons) {
+      const perkNames = new Set<string>();
+      for (const col of w.perkColumns) {
+        for (const hash of col.plugHashes) {
+          const p = bundle.perks[hash];
+          if (p) perkNames.add(p.name.toLowerCase());
+        }
+      }
+      index.set(w.hash, {
+        name: w.name.toLowerCase(),
+        type: w.itemTypeDisplayName.toLowerCase(),
+        perks: [...perkNames].join("\n"),
+      });
+    }
+    return index;
+  }, [weapons, bundle]);
+
+  const typeOptions = useMemo(
+    () => [...new Set(weapons.map((w) => w.itemTypeDisplayName))].filter(Boolean).sort(),
+    [weapons],
+  );
+  const tierOptions = useMemo(
+    () => [...new Set(weapons.map((w) => w.tierTypeName))].filter(Boolean).sort(),
+    [weapons],
+  );
+
+  const filtered = useMemo(() => {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const list = weapons.filter((w) => {
+      const idx = searchIndex.get(w.hash)!;
+      if (!tokens.every((t) => tokenMatchesWeapon(t, idx.name, idx.type, idx.perks))) return false;
+      if (slot && w.weaponSlot !== slot) return false;
+      if (type && w.itemTypeDisplayName !== type) return false;
+      if (damage && String(w.damageType) !== damage) return false;
+      if (ammo && String(w.ammoType) !== ammo) return false;
+      if (tier && w.tierTypeName !== tier) return false;
+      if (craftableOnly && !w.craftable) return false;
+      return true;
+    });
+    list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  }, [weapons, searchIndex, query, slot, type, damage, ammo, tier, craftableOnly]);
+
+  // Cap rendering for the full live manifest (thousands of items).
+  const CAP = 300;
+  const shown = filtered.slice(0, CAP);
+
+  return (
+    <div className="weapon-list">
+      <div className="filter-bar">
+        <input
+          className="search"
+          type="search"
+          placeholder="Search weapons, perks, or aliases (kc, bns, pi…)"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoFocus
+        />
+        <select value={slot} onChange={(e) => setSlot(e.target.value)}>
+          <option value="">Any slot</option>
+          {Object.entries(SLOT_LABELS).map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="">Any type</option>
+          {typeOptions.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <select value={damage} onChange={(e) => setDamage(e.target.value)}>
+          <option value="">Any element</option>
+          {Object.entries(DAMAGE_TYPE_NAMES).map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+        <select value={ammo} onChange={(e) => setAmmo(e.target.value)}>
+          <option value="">Any ammo</option>
+          {Object.entries(AMMO_NAMES).map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+        <select value={tier} onChange={(e) => setTier(e.target.value)}>
+          <option value="">Any rarity</option>
+          {tierOptions.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={craftableOnly}
+            onChange={(e) => setCraftableOnly(e.target.checked)}
+          />
+          Craftable
+        </label>
+      </div>
+
+      <div className="result-count">
+        {filtered.length} weapon{filtered.length === 1 ? "" : "s"}
+        {filtered.length > CAP ? ` (showing first ${CAP} — refine your search)` : ""}
+      </div>
+
+      <div className="weapon-grid">
+        {shown.map((w) => (
+          <a key={w.hash} className="weapon-card" href={`#/weapon/${w.hash}`}>
+            <WeaponIcon weapon={w} />
+            <div className="weapon-card-body">
+              <div className="weapon-card-name">
+                {w.name}
+                {w.craftable && <span className="craftable-mark" title="Craftable">⌗</span>}
+              </div>
+              <div className="weapon-card-meta">
+                <ElementDot damageType={w.damageType} />
+                {w.itemTypeDisplayName} · {SLOT_LABELS[w.weaponSlot]} · {w.tierTypeName}
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+      {shown.length === 0 && <div className="empty">No weapons match those filters.</div>}
+    </div>
+  );
+}
