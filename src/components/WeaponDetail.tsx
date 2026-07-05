@@ -8,6 +8,7 @@ import {
   type WeaponDef,
 } from "../types.ts";
 import { computeStats, masterworkOptions } from "../lib/stats.ts";
+import { damagePerkFor } from "../lib/damagePerks.ts";
 import { BUNGIE_ROOT } from "../lib/manifest.ts";
 import { ElementDot, PerkIcon, WeaponIcon } from "./common.tsx";
 import { StatBars } from "./StatBars.tsx";
@@ -35,6 +36,17 @@ export function WeaponDetail({ weapon, bundle }: { weapon: WeaponDef; bundle: Ma
     () => computeStats(weapon, bundle, { perks: selectedPerks, masterworkStat, includeConditional }),
     [weapon, bundle, selectedPerks, masterworkStat, includeConditional],
   );
+
+  const perkPool = useMemo(() => {
+    const pool: PerkDef[] = [];
+    for (const col of weapon.perkColumns) {
+      for (const hash of col.plugHashes) {
+        const p = bundle.perks[hash];
+        if (p) pool.push(p);
+      }
+    }
+    return pool;
+  }, [weapon, bundle]);
 
   const intrinsic = weapon.intrinsicHash ? bundle.perks[weapon.intrinsicHash] : undefined;
   const mwOptions = masterworkOptions(weapon);
@@ -94,7 +106,12 @@ export function WeaponDetail({ weapon, bundle }: { weapon: WeaponDef; bundle: Ma
                       onClick={() => toggle(col.socketIndex, hash)}
                     >
                       <PerkIcon perk={p} />
-                      <span className="perk-name">{p.name}</span>
+                      <span className="perk-name">
+                        {p.name}
+                        {damagePerkFor(p.name) && (
+                          <span className="ttk-badge" title="Affects time to kill">TTK</span>
+                        )}
+                      </span>
                     </button>
                   );
                 })}
@@ -147,7 +164,12 @@ export function WeaponDetail({ weapon, bundle }: { weapon: WeaponDef; bundle: Ma
 
       <section className="panel">
         <h2>Time to Kill (Crucible)</h2>
-        <TtkPanel weaponType={weapon.itemTypeDisplayName} rpmStat={rpmStat} />
+        <TtkPanel
+          weaponType={weapon.itemTypeDisplayName}
+          rpmStat={rpmStat}
+          perkPool={perkPool}
+          selectedPerks={selectedPerks}
+        />
       </section>
     </div>
   );

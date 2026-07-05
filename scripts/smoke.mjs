@@ -41,7 +41,15 @@ const ttkRows = await page.locator(".ttk-table tbody tr").count();
 console.log("ttk rows:", ttkRows);
 console.log("base row:", (await page.locator(".ttk-table tr.highlight").textContent()).replace(/\s+/g, " "));
 
+// perk-aware TTK: selecting Kill Clip should pre-toggle its chip and change TTK
+const optimalCell = page.locator(".ttk-table tr.highlight .ttk-strong");
+const ttkBefore = await optimalCell.textContent();
+await page.click('.perk-btn:has-text("Kill Clip")');
+console.log("kill clip chip active:", await page.locator(".perk-chip.active", { hasText: "Kill Clip" }).count());
+console.log(`ttk before/after Kill Clip: ${ttkBefore} -> ${await optimalCell.textContent()}`);
+
 await page.screenshot({ path: `${SHOTS}/02-detail.png`, fullPage: true });
+await page.click('.perk-btn:has-text("Kill Clip")'); // deselect again
 
 // conditional perk toggle
 await page.click('.perk-btn:has-text("Keep Away")');
@@ -52,6 +60,13 @@ console.log("range with Keep Away conditional:", (await rangeRow.locator(".stat-
 await page.click(".back-link");
 await page.selectOption(".filter-bar select >> nth=1", { label: "Submachine Gun" });
 console.log("SMGs:", await page.locator(".weapon-card").count());
+
+// perk alias search ("kc" -> Kill Clip)
+await page.selectOption(".filter-bar select >> nth=1", { label: "Any type" });
+await page.fill(".search", "kc");
+console.log("weapons matching alias 'kc':", await page.locator(".weapon-card").count());
+await page.fill(".search", "kc smg");
+console.log("weapons matching 'kc smg':", await page.locator(".weapon-card").count());
 
 console.log(errors.length ? `ERRORS:\n${errors.join("\n")}` : "no page errors");
 await browser.close();

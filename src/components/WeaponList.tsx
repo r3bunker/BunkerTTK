@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AMMO_NAMES, DAMAGE_TYPE_NAMES, type ManifestBundle, type WeaponDef } from "../types.ts";
+import { tokenMatchesWeapon } from "../lib/perkAliases.ts";
 import { ElementDot, WeaponIcon } from "./common.tsx";
 
 const SLOT_LABELS: Record<WeaponDef["weaponSlot"], string> = {
@@ -19,6 +20,27 @@ export function WeaponList({ bundle }: { bundle: ManifestBundle }) {
 
   const weapons = useMemo(() => Object.values(bundle.weapons), [bundle]);
 
+  // Lowercased searchable text per weapon: name, type, and every perk in
+  // its pool (enables godroll.tv-style perk search, e.g. "kc" or "kill clip").
+  const searchIndex = useMemo(() => {
+    const index = new Map<number, { name: string; type: string; perks: string }>();
+    for (const w of weapons) {
+      const perkNames = new Set<string>();
+      for (const col of w.perkColumns) {
+        for (const hash of col.plugHashes) {
+          const p = bundle.perks[hash];
+          if (p) perkNames.add(p.name.toLowerCase());
+        }
+      }
+      index.set(w.hash, {
+        name: w.name.toLowerCase(),
+        type: w.itemTypeDisplayName.toLowerCase(),
+        perks: [...perkNames].join("\n"),
+      });
+    }
+    return index;
+  }, [weapons, bundle]);
+
   const typeOptions = useMemo(
     () => [...new Set(weapons.map((w) => w.itemTypeDisplayName))].filter(Boolean).sort(),
     [weapons],
@@ -29,9 +51,10 @@ export function WeaponList({ bundle }: { bundle: ManifestBundle }) {
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const list = weapons.filter((w) => {
-      if (q && !w.name.toLowerCase().includes(q) && !w.itemTypeDisplayName.toLowerCase().includes(q)) return false;
+      const idx = searchIndex.get(w.hash)!;
+      if (!tokens.every((t) => tokenMatchesWeapon(t, idx.name, idx.type, idx.perks))) return false;
       if (slot && w.weaponSlot !== slot) return false;
       if (type && w.itemTypeDisplayName !== type) return false;
       if (damage && String(w.damageType) !== damage) return false;
@@ -42,7 +65,7 @@ export function WeaponList({ bundle }: { bundle: ManifestBundle }) {
     });
     list.sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [weapons, query, slot, type, damage, ammo, tier, craftableOnly]);
+  }, [weapons, searchIndex, query, slot, type, damage, ammo, tier, craftableOnly]);
 
   // Cap rendering for the full live manifest (thousands of items).
   const CAP = 300;
@@ -54,7 +77,7 @@ export function WeaponList({ bundle }: { bundle: ManifestBundle }) {
         <input
           className="search"
           type="search"
-          placeholder="Search weapons…"
+          placeholder="Search weapons, perks, or aliases (kc, bns, pi…)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoFocus

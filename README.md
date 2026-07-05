@@ -21,6 +21,13 @@ only when Bungie ships a new manifest version).
   across the Weapons-stat range (100–200), with breakpoint rows highlighted where the stat
   bonus drops a shot. Damage values aren't exposed by the Bungie API, so they come from an
   editable community table of per-archetype damage numbers.
+- **Perk-aware TTK (godroll.tv-style PvP mode)** — perks that change TTK (Kill Clip, Target
+  Lock, High-Impact Reserves, Desperado, …) are badged in the perk grid and offered as toggles
+  in the TTK panel with max-stack PvP multipliers; selecting one in the roll editor applies it
+  automatically.
+- **Perk & alias search** — the weapon search matches perk pools too, including community
+  shorthand (`kc` → Kill Clip, `bns` → Bait and Switch, `smg`, `hc`, …), ported from
+  [bugrakaan/godroll.tv-app](https://github.com/bugrakaan/godroll.tv-app) (MIT).
 - **Offline sample data** — the app ships with a bundled demo dataset so it works immediately,
   with no API key and no network.
 
